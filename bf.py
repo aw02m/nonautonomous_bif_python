@@ -8,6 +8,7 @@ import numpy.linalg as la
 from scipy.integrate import solve_ivp
 from scipy import linalg
 from numpy.linalg import solve
+import itertools as it
 
 # from sympy import *
 
@@ -47,50 +48,43 @@ def det_derivative(A, dA):
 
 def bialt_square(A):
     dim = A.shape[0]
-    bialt_dim = sum(range(dim))
+    combinations = [(i, j) for i in range(1, dim) for j in range(i)]
+    multi_index = it.product(combinations, combinations)
+    bialt_dim = len(combinations)
     ret = np.zeros((bialt_dim, bialt_dim))
-    row = 0
-    col = 0
     temp = np.zeros((2, 2))
-    for p in range(1, dim):
-        for q in range(p):
-            for r in range(1, dim):
-                for s in range(r):
-                    temp[0, 0] = A[p, r]
-                    temp[0, 1] = A[p, s]
-                    temp[1, 0] = A[q, r]
-                    temp[1, 1] = A[q, s]
-                    ret[row, col] = np.linalg.det(temp)
-                    col += 1
-            col = 0
+    row = col = 0
+    for idx in it.product(combinations, combinations):
+        if col > bialt_dim - 1:
             row += 1
+            col = 0
+        for bin_idx in it.product([0, 1], [0, 1]):
+            temp[bin_idx] = A[idx[0][bin_idx[0]], idx[1][bin_idx[1]]]
+        ret[row, col] = np.linalg.det(temp)
+        col += 1
     return ret
 
 
 def bialt_square_derivative(A, dA):
     dim = A.shape[0]
-    bialt_dim = sum(range(dim))
+    combinations = [(i, j) for i in range(1, dim) for j in range(i)]
+    multi_index = it.product(combinations, combinations)
+    bialt_dim = len(combinations)
     ret = np.zeros((bialt_dim, bialt_dim))
-    row = 0
-    col = 0
     temp = np.zeros((2, 2))
     dtemp = np.zeros((2, 2))
-    for p in range(1, dim):
-        for q in range(p):
-            for r in range(1, dim):
-                for s in range(r):
-                    temp[0, 0] = A[p, r]
-                    temp[0, 1] = A[p, s]
-                    temp[1, 0] = A[q, r]
-                    temp[1, 1] = A[q, s]
-                    dtemp[0, 0] = dA[p, r]
-                    dtemp[0, 1] = dA[p, s]
-                    dtemp[1, 0] = dA[q, r]
-                    dtemp[1, 1] = dA[q, s]
-                    ret[row, col] = det_derivative(temp, dtemp)
-                    col += 1
-            col = 0
+    row = col = 0
+    for idx in it.product(combinations, combinations):
+        if col > bialt_dim - 1:
             row += 1
+            col = 0
+        for bin_idx in it.product([0, 1], [0, 1]):
+            temp[bin_idx] = A[idx[0][bin_idx[0]], idx[1][bin_idx[1]]]
+            dtemp[bin_idx] = dA[idx[0][bin_idx[0]], idx[1][bin_idx[1]]]  # this and ↓
+        ret[row, col] = det_derivative(
+            temp, dtemp
+        )  # also this line are only different line from bialt_square().
+        col += 1
     return ret
 
 
@@ -254,10 +248,13 @@ def main():
             l = linalg.eig(data.dphidx.T)[0]
             comp = True if abs(l[0].imag) < 1e-8 else False
             str = "{0:2d} ".format(iteration)
+            logstr = ""
             for i in range(len(data.dic["params"])):
                 str += "{0: .5f} ".format(data.dic["params"][i])
+                logstr += "{0:} ".format(data.dic["params"][i])
             for i in range(len(data.dic["x0"])):
                 str += "{0: .8f} ".format(data.dic["x0"][i])
+                logstr += "{0:} ".format(data.dic["x0"][i])
             if comp == True:
                 str += "R "
                 str += "{0: .7f} {1: .7f} ".format(l[0].real, l[1].real)
@@ -267,8 +264,9 @@ def main():
                 str += "ABS "
                 str += "{0: .7f} ".format(abs(l[0]))
             str += "({0:}[ms])".format(int((t_end - t_start) * 1e03))
+            # print(l)
             print(str)
-            logfile.write(str + "\n")
+            logfile.write(logstr + "\n")
             pos = data.dic["increment_param"]
             data.dic["params"][pos] += data.dic["dparams"][pos]
 
